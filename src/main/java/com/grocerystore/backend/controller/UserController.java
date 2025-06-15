@@ -1,0 +1,109 @@
+package com.grocerystore.backend.controller;
+
+import com.grocerystore.backend.dto.AddressRequest;
+import com.grocerystore.backend.model.Address;
+import com.grocerystore.backend.model.User;
+import com.grocerystore.backend.repository.UserRepository;
+import com.grocerystore.backend.service.AddressService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/user")
+@RequiredArgsConstructor
+public class UserController {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final AddressService addressService;
+
+    // GET /api/user/profile
+    @GetMapping("/profile")
+    public Map<String, Object> getProfile(Authentication authentication) {
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        return Map.of(
+                "id", user.getId(),
+                "name", user.getName(),
+                "email", user.getEmail(),
+                "phone", user.getPhone(),
+                "message", "User profile fetched successfully"
+        );
+    }
+
+    // PUT /api/user/profile
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateProfile(@RequestBody Map<String, String> request, Authentication authentication) {
+        String email = authentication.getName(); // Extracted from JWT by Spring Security
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Update only if present
+        if (request.containsKey("name")) {
+            user.setName(request.get("name"));
+        }
+
+        if (request.containsKey("password")) {
+            String newPassword = request.get("password");
+            if (newPassword.length() < 6) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Password too short (min 8 chars)"));
+            }
+            user.setPassword(passwordEncoder.encode(newPassword));
+        }
+
+        userRepository.save(user);
+
+        return ResponseEntity.ok(Map.of(
+                "id", user.getId(),
+                "name", user.getName(),
+                "email", user.getEmail(),
+                "message", "Profile updated successfully"
+        ));
+    }
+
+    // Add address - POST /api/user/address
+    @PostMapping("/address")
+    public ResponseEntity<?> addAddress(@Valid @RequestBody AddressRequest request, Authentication auth) {
+        String email = auth.getName();
+        User user = userRepository.findByEmail(email).orElseThrow();
+        Address address = addressService.addAddress(request, user);
+        return ResponseEntity.ok(Map.of("message", "Address added successfully", "address", address));
+    }
+
+    // Update address - POST /api/user/address/{id}
+    @PutMapping("/address/{id}")
+    public ResponseEntity<?> updateAddress(@PathVariable Long id, @Valid @RequestBody AddressRequest request, Authentication auth) {
+        String email = auth.getName();
+        User user = userRepository.findByEmail(email).orElseThrow();
+        Address address = addressService.updateAddress(id, request, user);
+        return ResponseEntity.ok(Map.of("message", "Address updated successfully", "address", address));
+    }
+
+    // Delete address - POST /api/user/address/{id}
+    @DeleteMapping("/address/{id}")
+    public ResponseEntity<?> deleteAddress(@PathVariable Long id, Authentication auth) {
+        String email = auth.getName();
+        User user = userRepository.findByEmail(email).orElseThrow();
+        addressService.deleteAddress(id, user);
+        return ResponseEntity.ok(Map.of("message", "Address deleted successfully"));
+    }
+
+    // Get all addresses - POST /api/user/addresses
+    @GetMapping("/addresses")
+    public ResponseEntity<?> getAllAddresses(Authentication auth) {
+        String email = auth.getName();
+        User user = userRepository.findByEmail(email).orElseThrow();
+        List<Address> addresses = addressService.getUserAddresses(user);
+        return ResponseEntity.ok(Map.of("addresses", addresses));
+    }
+
+}
