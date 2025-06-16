@@ -35,8 +35,6 @@ public class Address {
 
     private String type; // Home, Office, etc.
 
-
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     @JsonBackReference
