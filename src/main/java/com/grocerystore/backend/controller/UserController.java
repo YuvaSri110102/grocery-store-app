@@ -1,12 +1,14 @@
 package com.grocerystore.backend.controller;
 
 import com.grocerystore.backend.dto.AddressRequest;
+import com.grocerystore.backend.dto.ProfileRequest;
 import com.grocerystore.backend.model.Address;
 import com.grocerystore.backend.model.User;
 import com.grocerystore.backend.repository.UserRepository;
 import com.grocerystore.backend.service.AddressService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.BindingResult;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,6 +25,7 @@ public class UserController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AddressService addressService;
+
 
     // GET /api/user/profile
     @GetMapping("/profile")
@@ -42,23 +45,17 @@ public class UserController {
 
     // PUT /api/user/profile
     @PutMapping("/profile")
-    public ResponseEntity<?> updateProfile(@RequestBody Map<String, String> request, Authentication authentication) {
-        String email = authentication.getName(); // Extracted from JWT by Spring Security
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        // Update only if present
-        if (request.containsKey("name")) {
-            user.setName(request.get("name"));
+    public ResponseEntity<?> updateProfile(@Valid @RequestBody ProfileRequest request, BindingResult bindingResult, Authentication auth) {
+        if (bindingResult.hasErrors()) {
+            String errorMsg = bindingResult.getAllErrors().get(0).getDefaultMessage();
+            return ResponseEntity.badRequest().body(Map.of("message", errorMsg));
         }
 
-        if (request.containsKey("password")) {
-            String newPassword = request.get("password");
-            if (newPassword.length() < 6) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Password too short (min 8 chars)"));
-            }
-            user.setPassword(passwordEncoder.encode(newPassword));
-        }
+        String email = auth.getName();
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (request.getName() != null) user.setName(request.getName());
+        if (request.getPassword() != null) user.setPassword(passwordEncoder.encode(request.getPassword()));
 
         userRepository.save(user);
 
@@ -69,6 +66,7 @@ public class UserController {
                 "message", "Profile updated successfully"
         ));
     }
+
 
     // Add address - POST /api/user/address
     @PostMapping("/address")

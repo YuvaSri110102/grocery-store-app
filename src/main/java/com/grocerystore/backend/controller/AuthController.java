@@ -19,7 +19,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
-    private final UserRepository userRepository;
+
     //  POST /api/auth/register
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, BindingResult bindingResult) {
@@ -36,12 +36,11 @@ public class AuthController {
         boolean isSuccess = (boolean) serviceResponse.get("success");
 
         if (!isSuccess) {
-            return ResponseEntity.ok(Map.of(
+            return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
                     "message", serviceResponse.get("message")
             ));
         }
-
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", serviceResponse.get("message")
@@ -68,22 +67,6 @@ public class AuthController {
             ));
         }
     }
-
-    // GET /api/user/profile
-    @GetMapping("/profile")
-    public Map<String, Object> getProfile(Authentication authentication) {
-        String email = authentication.getName();
-        User user = userRepository.findByEmail(email).orElseThrow(() ->
-                new RuntimeException("User not found, Please Register !!"));
-        return Map.of(
-                "id", user.getId(),
-                "name", user.getName(),
-                "email", user.getEmail(),
-                "message", "User profile fetched successfully"
-        );
-    }
-
-
 
 
     // POST /api/auth/forgot-password

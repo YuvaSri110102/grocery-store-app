@@ -56,14 +56,13 @@ public class AuthService {
     }
 
     public String login(LoginRequest request) {
-        Optional<User> userOpt = userRepository.findByEmail(request.getEmail());
-        if (userOpt.isEmpty()) return "Invalid email or password";
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
 
-        User user = userOpt.get();
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            return "Invalid email or password";
+            throw new RuntimeException("Invalid email or password");
         }
-        // If login successful, return JWT token
+
         return jwtUtil.generateToken(user.getEmail());
     }
 
