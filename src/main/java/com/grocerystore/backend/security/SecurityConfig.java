@@ -16,6 +16,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.config.Customizer;
 
 @Configuration
 @EnableWebSecurity
@@ -24,6 +25,10 @@ public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
 
+    public SecurityConfig(JwtFilter jwtFilter) {
+        this.jwtFilter = jwtFilter;
+    }
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder(); // Encrypts passwords
@@ -31,11 +36,14 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.csrf().disable()
+        http
+                .cors(Customizer.withDefaults()) //Enables CORS support
+                .csrf().disable()
                 .authorizeHttpRequests()
-                .requestMatchers("/api/auth/**").permitAll() // public routes
+                .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/user/**").authenticated()
-                .anyRequest().authenticated()               // others need JWT
+                .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
+                .anyRequest().authenticated()
                 .and()
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -47,4 +55,3 @@ public class SecurityConfig {
         return config.getAuthenticationManager(); // Required to enable authentication
     }
 }
-

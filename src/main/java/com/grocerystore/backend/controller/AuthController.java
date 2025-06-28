@@ -1,95 +1,63 @@
 package com.grocerystore.backend.controller;
 
-import com.grocerystore.backend.dto.*;
+import com.grocerystore.backend.dto.LoginRequest;
+import com.grocerystore.backend.dto.RegisterRequest;
 import com.grocerystore.backend.model.User;
 import com.grocerystore.backend.repository.UserRepository;
-import com.grocerystore.backend.service.AuthService;
+import com.grocerystore.backend.security.JwtUtil;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.validation.BindingResult;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService authService;
+    private final UserRepository userRepo;
+    private final PasswordEncoder encoder;
+    private final JwtUtil jwtUtil;
 
-    //  POST /api/auth/register
+    public AuthController(UserRepository userRepo, PasswordEncoder encoder, JwtUtil jwtUtil) {
+        this.userRepo = userRepo;
+        this.encoder = encoder;
+        this.jwtUtil = jwtUtil;
+    }
+
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
-            String errorMsg = bindingResult.getAllErrors().get(0).getDefaultMessage();
-            return ResponseEntity.ok(Map.of(
-                    "success", false,
-                    "message", errorMsg
-            ));
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req) {
+        if (userRepo.existsByEmail(req.getEmail())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Email already in use"));
         }
 
-        Map<String, Object> serviceResponse = authService.register(request);
+        User user = new User();
+        user.setName(req.getName());
+        user.setEmail(req.getEmail());
+        user.setPassword(encoder.encode(req.getPassword()));
+        user.setPhone(req.getPhone());
 
-        boolean isSuccess = (boolean) serviceResponse.get("success");
+        userRepo.save(user);
 
-        if (!isSuccess) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", serviceResponse.get("message")
-            ));
+        return ResponseEntity.ok(Map.of("message", "User registered successfully"));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest req) {
+        User user = userRepo.findByEmail(req.getEmail())
+                .orElse(null);
+
+        if (user == null || !encoder.matches(req.getPassword(), user.getPassword())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid email or password"));
         }
+
+        String token = jwtUtil.generateToken(user.getEmail());
+
         return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", serviceResponse.get("message")
+                "token", token,
+                "message", "Login successful"
         ));
     }
 
-    // POST /api/auth/login
-    @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
-            String errorMsg = bindingResult.getAllErrors().get(0).getDefaultMessage();
-            return ResponseEntity.badRequest().body(Map.of("message", errorMsg));
-        }
-
-        try {
-            String jwt = authService.login(request);
-            return ResponseEntity.ok().body(Map.of(
-                    "token", jwt,
-                    "message", "Login successful"
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "message", e.getMessage()
-            ));
-        }
-    }
-
-
-    // POST /api/auth/forgot-password
-    @PostMapping("/forgot-password")
-    public ResponseEntity<String> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request, BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
-            String errorMsg = bindingResult.getAllErrors().get(0).getDefaultMessage();
-            return ResponseEntity.badRequest().body(errorMsg);
-        }
-        String response = authService.forgotPassword(request);
-        return ResponseEntity.ok(response);
-    }
-
-    // POST /api/auth/reset-password
-    @PostMapping("/reset-password")
-    public ResponseEntity<String> resetPassword(@Valid @RequestBody ResetPasswordRequest request, BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
-            String errorMsg = bindingResult.getAllErrors().get(0).getDefaultMessage();
-            return ResponseEntity.badRequest().body(errorMsg);
-        }
-        String response = authService.resetPassword(request);
-        return ResponseEntity.ok(response);
-    }
-
 }
-
